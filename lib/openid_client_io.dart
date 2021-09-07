@@ -36,14 +36,13 @@ class Authenticator {
     return flow.callback(response);
   }
 
-  Future<String> getCode(String state, int port, Uri fullCodeUri) async {
-    String code = "";
+  Future<Map<String, String>> getCode(
+      String state, int port, Uri fullCodeUri) async {
     _requestsByState[state] = Completer();
     await _startServer(port);
     urlLancher(fullCodeUri.toString());
     var response = await _requestsByState[state]!.future;
-
-    return code;
+    return response;
   }
 
   /// cancel the ongoing auth flow, i.e. when the user closed the webview/browser without a successful login
