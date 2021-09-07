@@ -24,10 +24,8 @@ class Authenticator {
           ..scopes.addAll(scopes)
           ..redirectUri = redirectUri ?? Uri.parse('http://localhost:$port/');
 
-  Future<Credential> authorize([String? stateKey]) async {
-    var state = stateKey == null
-        ? flow.authenticationUri.queryParameters['state']!
-        : stateKey;
+  Future<Credential> authorize() async {
+    var state = flow.authenticationUri.queryParameters['state']!;
 
     _requestsByState[state] = Completer();
     await _startServer(port);
@@ -36,6 +34,16 @@ class Authenticator {
     var response = await _requestsByState[state]!.future;
 
     return flow.callback(response);
+  }
+
+  Future<String> getCode(String state, int port, Uri fullCodeUri) async {
+    String code = "";
+    _requestsByState[state] = Completer();
+    await _startServer(port);
+    urlLancher(fullCodeUri.toString());
+    var response = await _requestsByState[state]!.future;
+
+    return code;
   }
 
   /// cancel the ongoing auth flow, i.e. when the user closed the webview/browser without a successful login
@@ -60,25 +68,31 @@ class Authenticator {
               request.response.statusCode = 200;
               request.response.headers.set('Content-type', 'text/html');
               request.response.writeln('<html>'
-                  '<h1>THIS IS ALTERED PACKAGE</h1>'
+                  '<h1>You can now close this window</h1>'
                   '<script>window.close();</script>'
                   '</html>');
               await request.response.close();
               var result = request.requestedUri.queryParameters;
 
               if (!result.containsKey('state')) continue;
-              var r = _requestsByState.remove(result['state'])!;
-              r.complete(result);
-              if (_requestsByState.isEmpty) {
-                for (var s in _requestServers.values) {
-                  await (await s).close();
-                }
-                _requestServers.clear();
-              }
+              await processResult(result);
             }
 
             await _requestServers.remove(port);
           }));
+  }
+
+  /// Process the Result from a auth Request
+  /// You can call this manually if you are redirected to the app by an external browser
+  static Future<void> processResult(Map<String, String> result) async {
+    var r = _requestsByState.remove(result['state'])!;
+    r.complete(result);
+    if (_requestsByState.isEmpty) {
+      for (var s in _requestServers.values) {
+        await (await s).close();
+      }
+      _requestServers.clear();
+    }
   }
 }
 
